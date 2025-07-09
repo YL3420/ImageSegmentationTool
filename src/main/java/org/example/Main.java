@@ -24,9 +24,9 @@ public class Main {
         /**
          * process image for algorithm
          */
-        ProcessedImage image = new ProcessedImage("images/cars.jpg");
+        ProcessedImage image = new ProcessedImage("images/cat.jpg");
         image.grayScaleImage();
-        image.resizeImage(2);
+        image.resizeImage(7);
 
         /**
          * image props

@@ -189,8 +189,6 @@ public class ProcessedImage {
         }
 
 
-        // other t-link logic
-
 
         // remaining neighbor edge operations
         // O(N0
@@ -205,8 +203,8 @@ public class ProcessedImage {
                     long weightSrc = hist.objEnergy(intensities[curr]);
                     long weightSink = hist.bkgEnergy(intensities[curr]);
 
-                    graph.addEdge(src, curr, weightSrc);
-                    graph.addEdge(curr, sink, weightSink);
+                    graph.addEdge(src, curr, weightSink);
+                    graph.addEdge(curr, sink, weightSrc);
                 }
 
 
