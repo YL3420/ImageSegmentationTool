@@ -4,7 +4,6 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.nio.Buffer;
 import java.util.HashSet;
 import java.util.List;
 import javax.imageio.ImageIO;
@@ -43,6 +42,10 @@ public class ProcessedImage {
         }
     }
 
+
+    /**
+     *  converts processedImageInstance from 3-channel RGB to single channel intensity [0, 255]
+     */
     public void grayScaleImage(){
 
         BufferedImage gray = new BufferedImage(
@@ -50,15 +53,17 @@ public class ProcessedImage {
                 this.height,
                 BufferedImage.TYPE_BYTE_GRAY
         );
-
-
         gray.getGraphics().drawImage(originalImage, 0, 0, null);
-
-//        System.out.println(gray.getRaster().getWidth()*gray.getRaster().getHeight());
 
         this.processedImageInstance = gray;
     }
 
+
+    /**
+     *  downsize the processedImageInstance and decrease resolution
+     *  divides width and height by factor
+     * @param factor
+     */
     public void resizeImage(int factor){
         int targetHeight = height/factor;
         int targetWidth = width/factor;
@@ -75,11 +80,15 @@ public class ProcessedImage {
         g2d.drawImage(processedImageInstance, 0, 0, targetWidth, targetHeight, null);
         g2d.dispose();
 
-//        System.out.println(resized.getRaster().getWidth()*resized.getRaster().getHeight());
-
         this.processedImageInstance = resized;
     }
 
+
+    /**
+     * write processedImageInstance as file to src and adds label (addition)
+     * @param src
+     * @param addition
+     */
     public void writeProcessedImage(String src, String addition){
         try {
             ImageIO.write(processedImageInstance, "jpg", new File(src.substring(0, src.length()-4) + addition + ".jpg"));
@@ -97,6 +106,10 @@ public class ProcessedImage {
         return new Dimensions(width, height);
     }
 
+
+    /**
+     *  returns a copy of originalImageInstance before any processing
+     */
     public BufferedImage getOriginalImageInstance(){
         BufferedImage copy = new BufferedImage(
                 originalImage.getWidth(),
@@ -109,6 +122,10 @@ public class ProcessedImage {
         return copy;
     }
 
+
+    /**
+     *  returns a copy of the latest processedImageInstance
+     */
     public BufferedImage getProcessedImageInstance(){
         BufferedImage copy = new BufferedImage(
                 processedImageInstance.getWidth(),
@@ -126,12 +143,9 @@ public class ProcessedImage {
     }
 
 
-
-//    private long computeRegionalTerm(){
-//
-//    }
-
-
+    /**
+     * runs the graph cut given source, sink, and the O, B sets
+     */
 
     boolean graphCutPerformed = false;
     boolean[] graphCut;
@@ -142,10 +156,6 @@ public class ProcessedImage {
         if(graphCutPerformed) return graphCut;
 
         int imgSize = this.width * this.height;
-
-        // impose topological constraints with hard coded sets O and B
-        int[] objSeed = new int[imgSize];
-        int[] bkgSeed = new int[imgSize];
 
 
         NetworkFlowSolverBase graph = new EdmondsKarpSolver(imgSize, src, sink);
@@ -167,11 +177,14 @@ public class ProcessedImage {
             }
         }
 
+
+        // recording
         HistogramModel hist = new HistogramModel();
         HashSet<Integer> inO = new HashSet<>();
         HashSet<Integer> inB = new HashSet<>();
 
-        // impose hard constraints
+
+        // impose hard constraints by building expensive edges from s to O and B to t
         for(CustomPoint p : objSeedSet){
             int o = p.pointToIndex(processedImageInstance.getWidth());
             graph.addEdge(src, o, Long.MAX_VALUE);
@@ -191,12 +204,11 @@ public class ProcessedImage {
 
 
         // remaining neighbor edge operations
-        // O(N0
+        // O(N)
         for(int y=0; y<this.height; y++){
             for(int x=0; x<this.width; x++){
 
                 int curr = y*this.width+x;
-
 
                 // adding t-links
                 if(!inO.contains(curr) && ! inB.contains(curr)){

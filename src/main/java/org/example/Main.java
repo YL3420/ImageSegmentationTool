@@ -3,16 +3,12 @@ package org.example;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.image.BufferedImage;
-import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import org.example.imaging.ProcessedImage;
-import org.example.network.EdmondsKarpSolver;
-import org.example.network.NetworkFlowSolverBase;
 import org.example.use_interface.GraphicalUserInterface;
-import org.example.use_interface.GraphicalUserInterface.CustomPoint;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -21,16 +17,13 @@ public class Main {
 
     public static void main(String[] args) {
 
-        /**
-         * process image for algorithm
-         */
-        ProcessedImage image = new ProcessedImage("images/cat.jpg");
+        // process image for algoithm
+        ProcessedImage image = new ProcessedImage("images/mcgraw.jpg");
         image.grayScaleImage();
-        image.resizeImage(7);
+        image.resizeImage(9);
 
-        /**
-         * image props
-         */
+
+        // image props
         BufferedImage originalImageInstance = image.getOriginalImageInstance();
         int imgWidth = image.getDimensions().width();
         int imgHeight = image.getDimensions().height();

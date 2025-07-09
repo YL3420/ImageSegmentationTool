@@ -1,18 +1,14 @@
 package org.example.use_interface;
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Graphics;
-import java.awt.Image;
 import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.JFrame;
 import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 
 public class GraphicalUserInterface extends JPanel {
 
@@ -62,6 +58,8 @@ public class GraphicalUserInterface extends JPanel {
 
         g.drawImage(image, 0, 0, null);
 
+        // paints source and sink pixels
+
         if(srcPoint != null){
             g.setColor(Color.RED);
             g.fillOval(srcPoint.x - 4, srcPoint.y - 4, 8, 8);
@@ -71,6 +69,8 @@ public class GraphicalUserInterface extends JPanel {
             g.setColor(Color.BLUE);
             g.fillOval(sinkPoint.x - 4, sinkPoint.y - 4, 8, 8);
         }
+
+        //paints all pixels in O and B sets
 
         if(!objSeedSet.isEmpty()) {
             g.setColor(Color.RED);
@@ -88,10 +88,16 @@ public class GraphicalUserInterface extends JPanel {
 
     }
 
+    /**
+     * change the BufferedImage instance to be displayed in panel
+     */
     public void setImage(BufferedImage image){
         this.image = image;
     }
 
+    /**
+     * changes from hard obj selection to hard bkg selection and vice versa
+     */
     public void toggleSelectingObjSeed(){
         assert srcPoint != null && sinkPoint != null;
 
@@ -108,10 +114,6 @@ public class GraphicalUserInterface extends JPanel {
         }
     }
 
-
-    /**
-     * do get...().x()/.y()
-     */
 
     public CustomPoint getSrcLoc(){
         return new CustomPoint(srcPoint.x, srcPoint.y);
