@@ -18,7 +18,7 @@ public class Main {
     public static void main(String[] args) {
 
         // process image for algoithm
-        ProcessedImage image = new ProcessedImage("images/cat.jpg");
+        ProcessedImage image = new ProcessedImage("images/mcgraw.jpg");
         image.grayScaleImage();
         image.resizeImage(9);
 
