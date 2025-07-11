@@ -4,6 +4,7 @@ import java.sql.Array;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -15,8 +16,11 @@ import org.jetbrains.annotations.Nullable;
 public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
 
 
+    Set<Integer> activeSet;
+
     Set<Integer> activeS;
     Set<Integer> activeT;
+    Set<Integer> activeQueue;
 
     Set<Integer> orphans;
 
@@ -46,6 +50,9 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
 
         activeS = new LinkedHashSet<>();
         activeT = new LinkedHashSet<>();
+        activeQueue = new LinkedHashSet<>();
+
+        activeSet = new LinkedHashSet<>();
 
         sTree = new LinkedList<>();
         tTree = new LinkedList<>();
@@ -60,38 +67,23 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
         sTree.add(s);
         tTree.add(t);
 
+        activeSet.add(s);
+        activeSet.add(t);
+
+
         long flow = Long.MAX_VALUE;
 
-        while(flow != 0) {
-            flow = 0;
-            // grow tree S and find augmenting path
-            while(!activeS.isEmpty()) {
-                int curr = activeS.iterator().next();
+        while(true) {
 
-                Edge collisionEdge = activeGrow(curr);
-                if (collisionEdge != null) {
-                    flow = augmentPath(collisionEdge);
-                    System.out.println(flow);
-                    maxFlow += flow;
-                    break;
-                } else {
-                    activeS.remove(curr);
-                }
+            Edge collisionEdge = activeGrow();
+            if(collisionEdge != null){
+                flow = augmentPath(collisionEdge);
+            } else {
+                break;
             }
 
-            // grow tree T and find augmenting path
-            while (!activeT.isEmpty()){
-                int curr = activeT.iterator().next();
-
-                Edge collisionEdge = activeGrow(curr);
-                if (collisionEdge != null) {
-                    flow = augmentPath(collisionEdge);
-                    maxFlow += flow;
-                    break;
-                } else {
-                    activeT.remove(curr);
-                }
-            }
+            if(flow == Long.MAX_VALUE) break;
+            maxFlow += flow;
 
             adoptOrphans();
         }
@@ -100,143 +92,142 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
 
 
     /**
-     * check adjacent neighbors for the node
+     *  for each active node in the active set, expand and incorporate new members to the active set and the
+     *  tree. if all neighbors are discovered, active node becomes passive
+     *
+     *  if collision with another tree is detected, return the collision edge
+     *  if all members of active sets are exhausted, return null, no collision found and therefore,
+     *  no augmenting path found
      */
-    public Edge activeGrow(int n){
+    public Edge activeGrow(){
 
-        for(Edge edge : graph[n]){
-            if(edge.remainingCapacity() <= 0) continue;
+        while(!activeSet.isEmpty()){
+            int active = activeSet.iterator().next();
 
-            int neighbor = edge.to;
-            if(nodeInTree[n] != 0 && nodeInTree[neighbor] != 0 &&
-                    nodeInTree[n] == -nodeInTree[neighbor]){
+            for(Edge edge : graph[active]){
+                if(edge.isResidual()) edge = edge.residual;
+                if(edge.remainingCapacity() <= 0) continue;
 
-                // if neighbor is already part of the tree and it's in the opposite tree, report collision
-                return edge;
-            } else if (parent[neighbor] == null && nodeInTree[neighbor] == 0) {
+                int potentialChild = edge.to;
+                if(nodeInTree[active] > 0) potentialChild = edge.from;
 
-                // if neighbor is not already in a tree, we incorporate it to the appropriate tree
-                if(nodeInTree[n] < 0) {
-                    activeS.add(neighbor);
-                    sTree.add(neighbor);
-                } else if (nodeInTree[n] > 0) {
-                    activeT.add(neighbor);
-                    tTree.add(neighbor);
+
+                if(nodeInTree[active] != 0 && parent[potentialChild] == null) {
+                    nodeInTree[potentialChild] = nodeInTree[active];
+                    parent[potentialChild] = edge;
+                    activeSet.add(potentialChild);
+                }else if(nodeInTree[potentialChild] != 0 && nodeInTree[potentialChild] != nodeInTree[active]){
+                    return edge;
                 }
-                nodeInTree[neighbor] = nodeInTree[n];
-                parent[neighbor] = edge;
             }
 
-            // otherwise, we ignore the neighbor
+            activeSet.remove(active);
         }
 
-        // return null if there's no collision. In that case, we remove the active node and set it as passive
         return null;
     }
 
-
     /**
-     * augments path with previous history provided for all nodes
+     *  augment the path by the bottleneck value
+     *
+     *  orphan nodes that are on the receiving end of a saturated edge as a result of the augmentation
      */
     public long augmentPath(Edge collisionEdge){
+
+        // finding the bottleneck value
         long bottleneck = Long.MAX_VALUE;
-
-        // finding bottleneck backwards
         for(Edge edge = parent[collisionEdge.from]; edge != null; edge = parent[edge.from]){
-            if(edge.remainingCapacity() <= 0) return 0;
+            if(edge.remainingCapacity() <= 0) break;
             bottleneck = Math.min(bottleneck, edge.remainingCapacity());
         }
-
-        for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.from]){
-            if(edge.remainingCapacity() <= 0) return 0;
+        for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.to]){
+            if(edge.remainingCapacity() <= 0) break;
             bottleneck = Math.min(bottleneck, edge.remainingCapacity());
         }
+        bottleneck = Math.min(collisionEdge.remainingCapacity(), bottleneck);
 
-        bottleneck = Math.min(bottleneck, collisionEdge.remainingCapacity());
 
-        // augment collision edge
+        // augmenting the path with the bottleneck value
+        for(Edge edge = parent[collisionEdge.from]; edge != null; edge = parent[edge.from]){
+            edge.augment(bottleneck);
+
+            // orphan node
+            int orphan = edge.to;
+            if(edge.remainingCapacity() <= 0 && nodeInTree[orphan] != 0){
+                parent[orphan] = null;
+                orphans.add(orphan);
+            }
+        }
+        for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.to]){
+            edge.augment(bottleneck);
+
+            //orphan node
+            int orphan = edge.to;
+            if(edge.remainingCapacity() <= 0 && nodeInTree[orphan] != 0){
+                parent[orphan] = null;
+                orphans.add(orphan);
+            }
+        }
         collisionEdge.augment(bottleneck);
 
-        // augment the path backward
-        for(Edge edge = parent[collisionEdge.from]; edge != null; edge = parent[edge.from]){
-            edge.augment(bottleneck);
-
-            if(edge.remainingCapacity() <= 0 && parent[edge.to]== edge){
-                orphans.add(edge.to);
-                activeS.remove(edge.to);
-                activeT.remove(edge.to);
-
-                parent[edge.to] = null;
-            }
-        }
-
-        // augment the path forward
-        for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.from]){
-            edge.augment(bottleneck);
-
-            if(edge.remainingCapacity() <= 0 && parent[edge.to]== edge){
-                orphans.add(edge.to);
-                activeS.remove(edge.to);
-                activeT.remove(edge.to);
-
-                parent[edge.to] = null;
-            }
-        }
-
-        return bottleneck;
+        return (bottleneck == Long.MAX_VALUE) ? 0 : bottleneck;
     }
 
 
-    /**
-     * orphan nodes is a terminology used in the paper, it refers to nodes that are neither associated
-     * with S or T tree after being disconnected by saturation of an edge, so it is not a free node either.
-     *
-     * This method processes the orphan nodes and place them back to either the S or T tree via other connections
-     * or put them in the free nodes set
-     */
     public void adoptOrphans(){
         while(!orphans.isEmpty()){
-            int node = orphans.iterator().next();
-            boolean adopted = false;
+            int orphan = orphans.iterator().next();
+            orphans.remove(orphan);
 
-            // use residual edges to find parents
-            for(Edge edge : graph[node]){
-                int p = edge.to;
+            // trying to find valid parent
+            for(Edge edge : graph[orphan]){
+                int potentialParent = edge.to;
+                if(edge.isResidual()) edge = edge.residual;
 
-                int curr = p;
-                while(parent[curr] != null){
-                    curr = parent[curr].from;
-                }
-                if(curr != s) continue;
+                // check if parent is valid, step 1
+                if(nodeInTree[potentialParent] == nodeInTree[orphan] && edge.remainingCapacity() > 0){
 
-
-                if(nodeInTree[node] != 0 && nodeInTree[node] == nodeInTree[p]){
-                    parent[node] = edge;
-                    adopted = true;
-                }
-            }
-
-
-            if(!adopted){
-                parent[node] = null;
-                nodeInTree[node] = 0;
-
-                // orphan the children
-                for(Edge edge : graph[node]){
-                    int c = edge.to;
-
-                    if(parent[c] != null && parent[c].from == node){
-                        orphans.add(c);
-                        activeS.remove(edge.to);
-                        activeT.remove(edge.to);
-                        parent[c] = null;
+                    // check if parent is valid if it's actually rooted at the desired terminal
+                    if(checkSrc(potentialParent, (nodeInTree[potentialParent] == 1) ? t : s)){
+                        parent[orphan] = edge;
+                        return;
                     }
                 }
             }
 
-            orphans.remove(node);
+            //  ----- if no valid parent found ------->
+
+            // scan neighbors in the same tree
+            for(Edge edge : graph[orphan]){
+                int neighbor = edge.to;
+                if(nodeInTree[neighbor] != 0 && nodeInTree[neighbor] == nodeInTree[orphan]){
+                    if(edge.residual.remainingCapacity() > 0){
+                        activeSet.add(neighbor);
+                    }
+
+                    int parentOfNeighbor = (nodeInTree[neighbor] > 0) ? edge.to : edge.from;
+                    if(parentOfNeighbor == orphan){
+                        orphans.add(neighbor);
+                        parent[neighbor] = null;
+                    }
+                }
+            }
+            nodeInTree[orphan] = 0;
+            activeSet.remove(orphan);
         }
     }
+
+    private boolean checkSrc(int node, int terminal){
+        for(Edge edge = parent[node]; edge != null;
+                edge = (terminal == 1)? parent[edge.to] : parent[edge.from]){
+
+            int curr = (terminal == 1) ? edge.to : edge.from;
+            if(curr == terminal) return true;
+        }
+
+        return false;
+    }
+
 
 
     public static void main(String[] args) {
