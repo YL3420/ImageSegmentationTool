@@ -20,7 +20,7 @@ public class Main {
         // process image for algoithm
         ProcessedImage image = new ProcessedImage("images/mcgraw.jpg");
         image.grayScaleImage();
-        image.resizeImage(9);
+        image.resizeImage(3);
 
 
         // image props

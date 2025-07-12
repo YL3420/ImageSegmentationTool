@@ -10,6 +10,8 @@ import javax.imageio.ImageIO;
 import org.example.network.EdmondsKarpSolver;
 import org.example.network.NetworkFlowSolverBase;
 import org.example.use_interface.GraphicalUserInterface.CustomPoint;
+import org.example.network.GraphCut;
+import org.example.network.Terminal;
 
 public class ProcessedImage {
 
@@ -150,104 +152,83 @@ public class ProcessedImage {
     boolean graphCutPerformed = false;
     boolean[] graphCut;
 
-    public boolean[] runGraphCut(int src, int sink, List<CustomPoint> objSeedSet,
-            List<CustomPoint> bkgSeedSet){
+    public boolean[] runGraphCut(int src, int sink, List<CustomPoint> objSeedSet, List<CustomPoint> bkgSeedSet) {
 
-        if(graphCutPerformed) return graphCut;
+        if (graphCutPerformed) return graphCut;
 
         int imgSize = this.width * this.height;
+        GraphCut graph = new GraphCut(imgSize + 2, imgSize + 4 * width * height); // buffer for neighbors + source/sink links
 
-
-        NetworkFlowSolverBase graph = new EdmondsKarpSolver(imgSize, src, sink);
         int[] intensities = new int[imgSize];
-
-        // populate intensity array
-        for(int y=0; y<this.height; y++) {
+        for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
-                int curr = y*this.width+x;
-
+                int idx = y * this.width + x;
                 int rgb = processedImageInstance.getRGB(x, y);
                 int r = (rgb >> 16) & 0xFF;
-                int g = (rgb >> 8)  & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
                 int b = rgb & 0xFF;
-
-                int intensity = (int)(0.299*r + 0.587*g + 0.114*b);
-
-                intensities[curr] = intensity;
+                intensities[idx] = (int)(0.299 * r + 0.587 * g + 0.114 * b);
             }
         }
 
-
-        // recording
         HistogramModel hist = new HistogramModel();
         HashSet<Integer> inO = new HashSet<>();
         HashSet<Integer> inB = new HashSet<>();
 
-
-        // impose hard constraints by building expensive edges from s to O and B to t
-        for(CustomPoint p : objSeedSet){
-            int o = p.pointToIndex(processedImageInstance.getWidth());
-            graph.addEdge(src, o, Long.MAX_VALUE);
-
-            hist.addObjSeed(intensities[p.pointToIndex(width)]);
-            inO.add(p.pointToIndex(this.width));
+        // Add terminal connections (seeds)
+        for (CustomPoint p : objSeedSet) {
+            int idx = p.pointToIndex(this.width);
+            graph.setTerminalWeights(idx, Float.POSITIVE_INFINITY, 0);
+            hist.addObjSeed(intensities[idx]);
+            inO.add(idx);
         }
 
-        for(CustomPoint p : bkgSeedSet){
-            int b = p.pointToIndex(this.width);
-            graph.addEdge(b, sink, Long.MAX_VALUE);
-
-            hist.addBkgSeed(intensities[p.pointToIndex(width)]);
-            inB.add(p.pointToIndex(this.width));
+        for (CustomPoint p : bkgSeedSet) {
+            int idx = p.pointToIndex(this.width);
+            graph.setTerminalWeights(idx, 0, Float.POSITIVE_INFINITY);
+            hist.addBkgSeed(intensities[idx]);
+            inB.add(idx);
         }
 
+        // Add n-links and soft t-links
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                int curr = y * this.width + x;
 
-
-        // remaining neighbor edge operations
-        // O(N)
-        for(int y=0; y<this.height; y++){
-            for(int x=0; x<this.width; x++){
-
-                int curr = y*this.width+x;
-
-                // adding t-links
-                if(!inO.contains(curr) && ! inB.contains(curr)){
+                if (!inO.contains(curr) && !inB.contains(curr)) {
                     long weightSrc = hist.objEnergy(intensities[curr]);
                     long weightSink = hist.bkgEnergy(intensities[curr]);
-
-                    graph.addEdge(src, curr, weightSink);
-                    graph.addEdge(curr, sink, weightSrc);
+                    graph.setTerminalWeights(curr, weightSink, weightSrc);
                 }
-
 
                 int[] dx = {1, 0, -1, 0};
                 int[] dy = {0, 1, 0, -1};
-
-                // adding n-links
-                // O(1)
-                for(int d=0; d<4; d++){
+                for (int d = 0; d < 4; d++) {
                     int nx = x + dx[d];
                     int ny = y + dy[d];
+                    if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
 
                     int neighbor = ny * this.width + nx;
-                    if(0 <= nx && nx < this.width && 0 <= ny && ny < this.height){
-
-                        int diff = Math.abs(intensities[curr] - intensities[neighbor]);
-                        int noise = 30;
-                        long weight = (long)(100 * Math.exp(- ((double)diff * diff) / (2 * noise * noise)));
-                        long weightSafe = Math.max(1, weight);
-
-                        graph.addEdge(curr, neighbor, weightSafe);
-                    }
-
+                    int diff = Math.abs(intensities[curr] - intensities[neighbor]);
+                    int noise = 30;
+                    long weight = (long)(100 * Math.exp(-((double)diff * diff) / (2 * noise * noise)));
+                    graph.setEdgeWeight(curr, neighbor, weight);
                 }
             }
         }
 
-        // solves the min cut
-        this.graphCut = graph.getMinCut();
+        // Run graph cut
+        graph.computeMaximumFlow(false, null);
+
+        // Mark segmentation: FOREGROUND = true, BACKGROUND = false
+        graphCut = new boolean[imgSize];
+        for (int i = 0; i < imgSize; i++) {
+            graphCut[i] = graph.getTerminal(i) == Terminal.FOREGROUND;
+        }
+
         graphCutPerformed = true;
         return graphCut;
     }
+
 
 }
