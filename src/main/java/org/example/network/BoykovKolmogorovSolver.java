@@ -84,7 +84,8 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
             int active = activeSet.iterator().next();
 
             for(Edge edge : graph[active]){
-                if(edge.remainingCapacity() <= 0) continue;
+                if(nodeInTree[active] < 0 && edge.remainingCapacity() <= 0) continue;
+                else if(nodeInTree[active] > 0 && edge.residual.remainingCapacity() <= 0) continue;
 
                 int potentialChild = edge.to;
 
@@ -109,14 +110,20 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
      */
     public long augmentPath(Edge collisionEdge){
 
+        // check tree and handle directionality
+        if(nodeInTree[collisionEdge.from] > 0){
+            collisionEdge = collisionEdge.residual;
+        }
+
         // finding the bottleneck value
         long bottleneck = Long.MAX_VALUE;
         for(Edge edge = parent[collisionEdge.from]; edge != null; edge = parent[edge.from]){
             bottleneck = Math.min(bottleneck, edge.remainingCapacity());
         }
         for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.from]){
-            bottleneck = Math.min(bottleneck, edge.remainingCapacity());
+            bottleneck = Math.min(bottleneck, edge.residual.remainingCapacity());
         }
+
         bottleneck = Math.min(bottleneck, collisionEdge.remainingCapacity());
 
 
@@ -132,11 +139,11 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
             }
         }
         for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.from]){
-            edge.augment(bottleneck);
+            edge.residual.augment(bottleneck);
 
             //orphan node
             int orphan = edge.to;
-            if(edge.remainingCapacity() <= 0){
+            if(edge.residual.remainingCapacity() <= 0){
                 parent[orphan] = null;
                 orphans.add(orphan);
             }
@@ -160,14 +167,23 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
 
             // trying to find valid parent
             for(Edge edge : graph[orphan]){
+
                 int potentialParent = edge.to;
 
+                // check tree and handle directionality
+                if(nodeInTree[orphan] < 0){
+                    edge = edge.residual;
+                }
+
                 // check if parent is valid, step 1
-                if(nodeInTree[potentialParent] == nodeInTree[orphan] && edge.residual.remainingCapacity() > 0){
+                if(nodeInTree[potentialParent] == nodeInTree[orphan] && edge.remainingCapacity() > 0){
 
                     // check if parent is valid if it's actually rooted at the desired terminal
                     if(checkSrc(potentialParent, (nodeInTree[potentialParent] == 1) ? t : s)){
-                        parent[orphan] = edge.residual;
+                        if(nodeInTree[orphan] < 0)
+                            parent[orphan] = edge;
+                        else
+                            parent[orphan] = edge.residual;
                         return;
                     }
                 }
@@ -177,9 +193,16 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
 
             // scan neighbors in the same tree
             for(Edge edge : graph[orphan]){
+
                 int neighbor = edge.to;
+
+                // check tree and handle directionality
+                if(nodeInTree[orphan] > 0){
+                    edge = edge.residual;
+                }
+
                 if(nodeInTree[neighbor] != 0 && nodeInTree[neighbor] == nodeInTree[orphan]){
-                    if(edge.residual.remainingCapacity() > 0){
+                    if(edge.remainingCapacity() > 0){
                         activeSet.add(neighbor);
                     }
 
