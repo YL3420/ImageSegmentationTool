@@ -49,6 +49,8 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
         activeSet.add(s);
         activeSet.add(t);
 
+        minCut[s] = true;
+
 
         long flow = Long.MAX_VALUE;
 
@@ -93,6 +95,8 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
                     nodeInTree[potentialChild] = nodeInTree[active];
                     parent[potentialChild] = edge;
                     activeSet.add(potentialChild);
+                    // incorporate into cut
+                    if(nodeInTree[active] == -1) minCut[potentialChild] = true;
                 }else if(nodeInTree[potentialChild] != 0 && nodeInTree[potentialChild] != nodeInTree[active]){
                     return edge;
                 }
@@ -123,8 +127,9 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
         for(Edge edge = parent[collisionEdge.to]; edge != null; edge = parent[edge.from]){
             bottleneck = Math.min(bottleneck, edge.residual.remainingCapacity());
         }
-
         bottleneck = Math.min(bottleneck, collisionEdge.remainingCapacity());
+
+        if(bottleneck == Long.MAX_VALUE) return 0;
 
 
         // augmenting the path with the bottleneck value
@@ -150,14 +155,14 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
         }
         collisionEdge.augment(bottleneck);
 
-        return (bottleneck == Long.MAX_VALUE) ? 0 : bottleneck;
+        return bottleneck;
     }
 
 
     /**
      * attempt to adopt an orphaned node to the same tree as it was in
      *
-     * if not, mark all of its neighbors that connect to the orphan with a nonsaturated node as active
+     * if not, mark all of its neighbors that connect to the orphan with a non-saturated node as active
      * and mark the node's first layer of children as orphan and process in the next iterations
      */
     public void adoptOrphans(){
@@ -165,41 +170,39 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
             int orphan = orphans.iterator().next();
             orphans.remove(orphan);
 
+            boolean adopted = false;
+
             // trying to find valid parent
             for(Edge edge : graph[orphan]){
 
                 int potentialParent = edge.to;
 
-                // check tree and handle directionality
-                if(nodeInTree[orphan] < 0){
-                    edge = edge.residual;
-                }
+                // stay consistent with parent edge handling
+                edge = edge.residual;
 
                 // check if parent is valid, step 1
-                if(nodeInTree[potentialParent] == nodeInTree[orphan] && edge.remainingCapacity() > 0){
+                if(nodeInTree[potentialParent] != nodeInTree[orphan]) continue;
+                if(nodeInTree[potentialParent] < 0 && edge.remainingCapacity() <= 0) continue;
+                else if (nodeInTree[potentialParent] > 0 && edge.residual.remainingCapacity() <= 0) continue;
 
-                    // check if parent is valid if it's actually rooted at the desired terminal
-                    if(checkSrc(potentialParent, (nodeInTree[potentialParent] == 1) ? t : s)){
-                        if(nodeInTree[orphan] < 0)
-                            parent[orphan] = edge;
-                        else
-                            parent[orphan] = edge.residual;
-                        return;
-                    }
+                // check if parent is valid if it's actually rooted at the desired terminal
+                if(checkSrc(potentialParent, (nodeInTree[potentialParent] == 1) ? t : s)){
+                    parent[orphan] = edge;
+                    adopted = true;
+                    break;
                 }
+
             }
 
+            if(adopted) continue;
             //  ----- if no valid parent found ------->
 
             // scan neighbors in the same tree
             for(Edge edge : graph[orphan]){
-
                 int neighbor = edge.to;
 
-                // check tree and handle directionality
-                if(nodeInTree[orphan] > 0){
+                if(nodeInTree[neighbor] < 0)
                     edge = edge.residual;
-                }
 
                 if(nodeInTree[neighbor] != 0 && nodeInTree[neighbor] == nodeInTree[orphan]){
                     if(edge.remainingCapacity() > 0){
@@ -212,6 +215,9 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
                     }
                 }
             }
+
+            // modify minCut
+            if(nodeInTree[orphan] == -1) minCut[orphan] = false;
             nodeInTree[orphan] = 0;
             activeSet.remove(orphan);
         }
@@ -223,7 +229,7 @@ public class BoykovKolmogorovSolver extends NetworkFlowSolverBase{
     private boolean checkSrc(int node, int terminal){
         int curr = node;
         while(parent[curr] != null){
-            if(curr == terminal) return true;
+//            if(curr == terminal) return true;
             curr = parent[curr].from;
         }
 
