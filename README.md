@@ -127,3 +127,9 @@ Larger Image
 5. Select as many obj pixels as deemed necessary for hard constraints, then click toggle selector to
     begin selection for bkg hard constraint pixels
 6. Run segmentation and wait for algorithm to run
+
+## References
+
+Boykov, Y., & Funka-Lea, G. (2006). Graph Cuts and Efficient N-D Image Segmentation. International Journal of Computer Vision, 70(2), 109–131
+
+Boykov, Y., & Kolmogorov, V. (2004). An Experimental Comparison of Min-Cut/Max-Flow Algorithms for Energy Minimization in Vision. IEEE Transactions on Pattern Analysis and Machine Intelligence, 26(9), 1124–1137
