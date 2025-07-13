@@ -20,13 +20,15 @@ public class Main {
         // process image for algoithm
         ProcessedImage image = new ProcessedImage("images/mcgraw.jpg");
         image.grayScaleImage();
-        image.resizeImage(9);
+        image.resizeImage(5);
 
 
         // image props
         BufferedImage originalImageInstance = image.getOriginalImageInstance();
         int imgWidth = image.getDimensions().width();
         int imgHeight = image.getDimensions().height();
+
+        System.out.println(imgWidth + " " + imgHeight);
 
         SwingUtilities.invokeLater(() -> {
             try {

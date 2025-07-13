@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.List;
 import javax.imageio.ImageIO;
+import org.example.network.BoykovKolmogorovSolver;
 import org.example.network.EdmondsKarpSolver;
 import org.example.network.NetworkFlowSolverBase;
 import org.example.use_interface.GraphicalUserInterface.CustomPoint;
@@ -158,7 +159,7 @@ public class ProcessedImage {
         int imgSize = this.width * this.height;
 
 
-        NetworkFlowSolverBase graph = new EdmondsKarpSolver(imgSize, src, sink);
+        NetworkFlowSolverBase graph = new BoykovKolmogorovSolver(imgSize, src, sink);
         int[] intensities = new int[imgSize];
 
         // populate intensity array

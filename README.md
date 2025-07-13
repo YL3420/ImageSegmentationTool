@@ -13,15 +13,19 @@ The problem can be modeled as a bipartite graph, where the left side of the grap
 source node to the other nodes, and the right side of the graph consists of more nodes connected to by edges from neighboring nodes and 
 edges to the sink node. 
 
-These edges have a value of flow and capacity, where both are nonnegative and must be integers.
+These edges have a value of flow and capacity, where both are non-negative and must be integers.
 Aside from the capacity constraint, the inflow to a node is conserved for the outflow. 
 
 Ford Fulkerson method keeps track of the flow and residual value on all edges throughout its iterations. To begin, it finds a augmenting path
 from the source node to the sink node in the residual graph and find a bottleneck value (the smallest residual capacity along the augmenting path)
-and increase flow in forward edges while decreasing flow in backward edges. 
+and increase flow in forward edges while decreasing flow in backward edges. Eventually, we will find a way to push the maximum amount of flow from the 
+source node to sink node.
 
 In the Edmonds-Karp implementation of this method, Breadth First Search is used to find the shortest augmenting path on each iteration and adjusting the flow of 
 the edges until certain edges are saturated meaning there's no more augmenting path from source to sink. 
+
+Once an edge is saturated, it will no longer appear as available in the residual graph. In the residual graph, nodes reachable by non-saturated edges /
+edges that have nonzero residual capacity in the residual graph from the source node will be separated from nodes that can't be reached (including the sink node).
 
 ## Image Processing
 When provided with an image to partition, the program first grayscales the image in order to reduce the 3-channel RGB space to a single-channel
@@ -31,7 +35,8 @@ gradient and structural clarity.
 Next, the image is resized with a factor in order to reduce computation time until further optimization on the algorithm is made.
 
 We represent each pixel as nodes and store their intensity information. Next, the user selects a source and a sink node, which can be modeled
-to our network flow graph problem. 
+to our network flow graph problem. The source node can be the object or background, and the sink node is the opposite. We aim to separate the two
+groups for image segmentation.
 
 <img src="readme_images/img1.png" alt="Alt text" width="200"/>
 <br>
@@ -66,6 +71,37 @@ Lastly, we can improve the solution and enable the intensity distribution by usi
 topological context on the image and is done by hardcoding certain pixels into set O and B. Pixels in set O have an expensive edge to the source node,
 making it impossible to cut, whereas pixels in set B have expensive edges to the sink node. These edges are labeled as K. 
 
+
+## Fast Algorithm and Improvement
+
+Edmonds-Karp algorithm is fairly slow as it relies on BFS each time to find a new augmenting path.
+
+The algorithm developed by Yuri Boykov and Vladimir Kolmogorov also uses the Ford-Fulkerson method to find the max flow / min cut on a flow graph.
+The algorithm grows and maintains "trees" from the terminals as it runs and finds augmenting paths at the intersections of those trees.
+Empirically in vision problems, BK performs better than Edmonds-Karp - while previously images need to be downsized for the program to finish the 
+computations, BK is able to find the graph cut for a larger image in multi-seconds runtime. 
+
+<img src="readme_images/twotrees.png" alt="Alt text" width="350"/>
+
+The incorporation of this algorithm into the segmentation tool improves the performance, however processing time and correctness of the result can still
+be fine-tuned.
+
+<img src="readme_images/BKProb.png" alt="Alt text" width="600"/>
+
+When the augmenting path was found and the flow values are adjusted on the edges, saturated edges will cause a node to be "orphaned" and disconnected from its tree. 
+A process is used to find another edge to connect the orphan back to its original tree. If no such parent is found, the orphan is put back to the set of free nodes, 
+which is the initial set of nodes that are not associated with either tree. 
+This stage of the algorithm can be time-consuming. Since part of the criteria for a valid parent is that it must be rooted at a terminal - this is due to the fact that
+potential parents may be "orphaned" and not actually part of the tree - the algorithm back propagates from the potential parent node and determine that it's actually rooted at a tree.
+This operation is costly and is performed each time an orphan seeks potential parents. 
+
+The fine-tuning for optimized performance involves checking and marking nodes for being rooted at a terminal, and recording its distance from the given terminal to build
+a shorter augmenting path each time.
+
+Lastly, if the initial selection of seeds for hard constraints produce poor results where pixels intended as object is highlighted as the background or vice versa. 
+The graph itself can be modified and additional seeds can be added by the user to manipulate the algorithm to labeling pixels as object or background pixels. A new complete
+cut can be produced relatively quickly given the new solution is built on top of the original graph.
+
 ## Results
 
 Simple example:
@@ -76,8 +112,9 @@ Other examples:
 
 <img src="readme_images/imgm.png" alt="Alt text" width="250"/> <img src="readme_images/imgm2.png" alt="Alt text" width="250"/>
 
+Larger Image
 
-[img] [img]
+<img src="readme_images/exp3.png" alt="Alt text" width="300"/> <img src="readme_images/exp3_sol.png" alt="Alt text" width="300"/>
 
 
 ## Usage on Desktop
